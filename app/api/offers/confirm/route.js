@@ -16,6 +16,13 @@ export async function POST(request) {
         const client = await clientPromise;
         const db = client.db("EduMart");
 
+        // --- NEW VALIDATION ---
+        // 1. Check if the buyer has a contact number
+        const buyer = await db.collection("users").findOne({ email: session.user.email });
+        if (!buyer || !buyer.contactNumber) {
+            return NextResponse.json({ message: "Please add a contact number to your account before confirming a purchase." }, { status: 400 });
+        }
+
         const offer = await db.collection("offers").findOne({
             _id: new ObjectId(offerId),
             buyerEmail: session.user.email,
@@ -46,13 +53,14 @@ export async function POST(request) {
             finalPrice: offer.offerPrice,
             completedAt: new Date()
         });
-        
+
         // 4. (Optional) Decline any other offers on this now-sold product
         await db.collection("offers").updateMany(
             { productId: offer.productId, status: { $ne: "completed" } },
             { $set: { status: "declined", updatedAt: new Date() } }
         );
 
+        
         return NextResponse.json({ success: true, message: "Purchase confirmed! Seller details are now in your account." });
     } catch (error) {
         console.error("Failed to confirm purchase:", error);
